@@ -6,7 +6,7 @@ use std::{vec, vec::Vec};
 /// Contains all the state used when searching the HNSW
 #[derive(Clone, Debug)]
 pub struct Searcher<Unit> {
-    pub(super) candidates: Vec<Neighbor<Unit>>,
+    pub(super) candidates: Vec<usize>,
     pub(super) nearest: Vec<Neighbor<Unit>>,
     pub(super) seen: HashSet<usize, RandomState>,
 }

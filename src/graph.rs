@@ -422,17 +422,17 @@ where
             return 0;
         }
 
-        self.initialize_searcher(&q, searcher);
+        let entry_layer = self.initialize_searcher(&q, searcher);
 
         // Find the entry point on the level it was created by searching normally until its level.
-        for ix in (level..self.layers.len()).rev() {
+        for ix in (level..entry_layer).rev() {
             // Perform an ANN search on this layer like normal.
             let cap = 1;
             self.search_single_layer(&q, searcher, &self.layers[ix], cap);
             self.lower_search(&self.layers[ix], searcher);
         }
         // Then start from its level and connect it to its nearest neighbors.
-        for ix in (0..core::cmp::min(level, self.layers.len())).rev() {
+        for ix in (0..core::cmp::min(level, entry_layer)).rev() {
             // Perform an ANN search on this layer like normal.
             let cap = self.params.ef_construction();
             self.search_single_layer(&q, searcher, &self.layers[ix], cap);
@@ -593,16 +593,17 @@ where
     {
         // If there is nothing in here, then just return nothing.
         if self.features.is_empty() || level >= self.layers() {
-            return &mut [];
+            return &mut searcher.nearest[..0];
         }
 
-        self.initialize_searcher(q, searcher);
-        let cap = 1;
+        let entry_layer = self.initialize_searcher(q, searcher);
 
-        for (ix, layer) in self.layers.iter().enumerate().rev() {
+        for (ix, layer) in self.layers[0..entry_layer].iter().enumerate().rev() {
+            let early_stop = ix + 1 == level;
+            let cap = if early_stop { ef } else { 1 };
             self.search_single_layer(q, searcher, layer, cap);
-            if ix + 1 == level {
-                return &mut searcher.nearest[..];
+            if early_stop {
+                return &mut searcher.nearest;
             }
             self.lower_search(layer, searcher);
         }
@@ -611,7 +612,7 @@ where
 
         self.search_zero_layer(q, searcher, cap);
 
-        &mut searcher.nearest[..]
+        &mut searcher.nearest
     }
 
     /// Greedily finds the approximate nearest neighbors to `q` in a non-zero layer.
@@ -625,7 +626,7 @@ where
     ) where
         Comps: HnswQueryComponents<Q, T>,
     {
-        while let Some(Neighbor { index, .. }) = searcher.candidates.pop() {
+        while let Some(index) = searcher.candidates.pop() {
             for neighbor in layer[index].neighbors().iter() {
                 let neighbor_node = &layer[neighbor];
                 let feature_ix = neighbor_node.feature_ix(neighbor);
@@ -649,7 +650,7 @@ where
                             distance,
                         };
                         searcher.nearest.insert(pos, candidate);
-                        searcher.candidates.push(candidate);
+                        searcher.candidates.push(neighbor);
                     }
                 }
             }
@@ -676,6 +677,10 @@ where
         layer: &[impl QueryNodeData],
         searcher: &mut Searcher<Unit>,
     ) {
+        debug_assert!(
+            searcher.candidates.is_empty(),
+            "candidate list should be empty now."
+        );
         // Clear the candidates so we can fill them with the best nodes in the last layer.
         searcher.candidates.clear();
         // Only preserve the best candidate. The original paper's algorithm uses `1` every time.
@@ -686,13 +691,17 @@ where
             let lower_index = layer[near.index].lower_index();
             near.index = lower_index;
             // Insert the index into the candidate pool as well.
-            searcher.candidates.push(*near);
+            searcher.candidates.push(lower_index);
         }
     }
 
     /// Resets a searcher, but does not set the `cap` on the nearest neighbors.
     /// Must be passed the query element `q`.
-    fn initialize_searcher<Q: ?Sized>(&self, q: &Q, searcher: &mut Searcher<QUnit<Comps, Q, T>>)
+    fn initialize_searcher<Q: ?Sized>(
+        &self,
+        q: &Q,
+        searcher: &mut Searcher<QUnit<Comps, Q, T>>,
+    ) -> usize
     where
         Comps: HnswQueryComponents<Q, T>,
     {
@@ -707,8 +716,9 @@ where
             index: entry_node,
             distance: entry_distance,
         };
-        searcher.candidates.push(candidate);
+        searcher.candidates.push(entry_node);
         searcher.nearest.push(candidate);
         searcher.seen.insert(feature_ix);
+        entry_layer
     }
 }
