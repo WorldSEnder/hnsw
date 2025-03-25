@@ -2,7 +2,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use gnuplot::*;
 use hnsw::compat::*;
 use hnsw::details::{Metric, Params};
-use rand::distributions::Standard;
+use rand::distr::StandardUniform as Standard;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use std::cell::RefCell;

@@ -2,8 +2,8 @@
 
 use bitarray::BitArray;
 use hnsw::compat::*;
-use rand::distributions::{Bernoulli, Standard};
-use rand::seq::SliceRandom;
+use rand::distr::{Bernoulli, StandardUniform as Standard};
+use rand::seq::IndexedRandom;
 use rand::Rng;
 use rand_core::SeedableRng;
 use rand_pcg::Pcg64;
