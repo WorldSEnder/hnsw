@@ -1,16 +1,16 @@
 use byteorder::{ByteOrder, LittleEndian};
 use gnuplot::*;
-use hnsw::*;
+use hnsw::compat::*;
+use hnsw::details::{Metric, Params};
 use rand::distributions::Standard;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
-use space::Metric;
-use space::Neighbor;
 use std::cell::RefCell;
 use std::io::Read;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+#[derive(Default)]
 struct Euclidean;
 
 impl Metric<&[f32]> for Euclidean {
@@ -179,10 +179,8 @@ fn process<const M: usize, const M0: usize>(opt: &Opt) -> (Vec<f64>, Vec<f64>) {
     eprintln!("Done.");
 
     eprintln!("Generating HNSW...");
-    let mut hnsw: Hnsw<_, _, Pcg64, M, M0> = Hnsw::new_params(
-        Euclidean,
-        Params::new().ef_construction(opt.ef_construction),
-    );
+    let mut hnsw: Hnsw<Euclidean, _, Pcg64, M, M0> =
+        Hnsw::with_params(Params::default().ef_construction(opt.ef_construction));
     let mut searcher: Searcher<_> = Searcher::default();
     for feature in &search_space {
         hnsw.insert(*feature, &mut searcher);
@@ -195,20 +193,13 @@ fn process<const M: usize, const M0: usize>(opt: &Opt) -> (Vec<f64>, Vec<f64>) {
     let (recalls, times): (Vec<f64>, Vec<f64>) = efs
         .map(|ef| {
             let correct = RefCell::new(0usize);
-            let dest = vec![
-                Neighbor {
-                    index: !0,
-                    distance: !0,
-                };
-                opt.k
-            ];
-            let stats = easybench::bench_env(dest, |mut dest| {
+            let stats = easybench::bench(|| {
                 let mut refmut = state.borrow_mut();
                 let (searcher, query) = &mut *refmut;
                 let (ix, query_feature) = query.next().unwrap();
                 let correct_worst_distance = correct_worst_distances[ix];
                 // Go through all the features.
-                for &mut neighbor in hnsw.nearest(&query_feature, ef, searcher, &mut dest) {
+                for &mut neighbor in hnsw.nearest(&query_feature, ef, searcher) {
                     // Any feature that is less than or equal to the worst real nearest neighbor distance is correct.
                     if Euclidean.distance(&search_space[neighbor.index], &query_feature)
                         <= correct_worst_distance

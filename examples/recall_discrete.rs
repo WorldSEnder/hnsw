@@ -1,16 +1,26 @@
-use bitarray::{BitArray, Hamming};
+use bitarray::BitArray;
 use gnuplot::*;
-use hnsw::*;
+use hnsw::compat::*;
+use hnsw::details::Metric;
 use itertools::Itertools;
-use num_traits::Zero;
 use rand::distributions::Standard;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
-use space::*;
 use std::cell::RefCell;
 use std::io::Read;
 use std::path::PathBuf;
 use structopt::StructOpt;
+
+#[derive(Default)]
+struct Hamming;
+
+impl<const N: usize> Metric<BitArray<N>> for Hamming {
+    type Unit = <bitarray::Hamming as space::Metric<BitArray<N>>>::Unit;
+
+    fn distance(&self, query: &BitArray<N>, point: &BitArray<N>) -> Self::Unit {
+        space::Metric::distance(&bitarray::Hamming, query, point)
+    }
+}
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -164,8 +174,8 @@ where
     eprintln!("Done.");
 
     eprintln!("Generating HNSW...");
-    let mut hnsw: Hnsw<_, T, Pcg64, M, M0> =
-        Hnsw::new_params(Hamming, Params::new().ef_construction(opt.ef_construction));
+    let mut hnsw: Hnsw<Hamming, T, Pcg64, M, M0> =
+        Hnsw::with_params(hnsw::details::Params::default().ef_construction(opt.ef_construction));
     let mut searcher: Searcher<_> = Searcher::default();
     for feature in &search_space {
         hnsw.insert(feature.clone(), &mut searcher);
@@ -178,20 +188,13 @@ where
     let (recalls, times): (Vec<f64>, Vec<f64>) = efs
         .map(|ef| {
             let correct = RefCell::new(0usize);
-            let dest = vec![
-                Neighbor {
-                    index: !0usize,
-                    distance: <Hamming as Metric<T>>::Unit::zero(),
-                };
-                opt.k
-            ];
-            let stats = easybench::bench_env(dest, |dest| {
+            let stats = easybench::bench(|| {
                 let mut refmut = state.borrow_mut();
                 let (searcher, query) = &mut *refmut;
                 let (ix, query_feature) = query.next().unwrap();
                 let correct_worst_distance = correct_worst_distances[ix];
                 // Go through all the features.
-                for &mut neighbor in hnsw.nearest(&query_feature, ef, searcher, dest) {
+                for &mut neighbor in hnsw.nearest(&query_feature, ef, searcher) {
                     // Any feature that is less than or equal to the worst real nearest neighbor distance is correct.
                     if Hamming.distance(&search_space[neighbor.index], &query_feature)
                         <= correct_worst_distance

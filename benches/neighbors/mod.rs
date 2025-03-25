@@ -1,9 +1,13 @@
-use bitarray::{BitArray, Hamming};
+use bitarray::BitArray;
 use criterion::*;
-use hnsw::*;
+use hnsw::compat::*;
 use rand_pcg::Pcg64;
 use space::*;
 use std::io::Read;
+
+#[path = "../../tests/utils/hamming.rs"]
+mod hamming;
+use hamming::Hamming;
 
 fn bench_neighbors(c: &mut Criterion) {
     // Set up knn benchmark group.
@@ -14,7 +18,7 @@ fn bench_neighbors(c: &mut Criterion) {
     let all_sizes = (space_mags).map(|n| 2usize.pow(n));
     let max_linear_size = 2usize.pow(14);
     let filepath = "data/akaze";
-    let total_descriptors = all_sizes.clone().rev().next().unwrap();
+    let total_descriptors = all_sizes.clone().next_back().unwrap();
     let descriptor_size_bytes = 61;
     let total_query_strings = 10000;
 
@@ -108,7 +112,7 @@ fn bench_neighbors(c: &mut Criterion) {
                     b.iter(|| {
                         let search_feature = cycle_range.next().unwrap();
                         LinearKnn {
-                            metric: Hamming,
+                            metric: bitarray::Hamming,
                             iter: search_space[..size].iter(),
                         }
                         .knn(&search_feature, 2)
@@ -125,7 +129,7 @@ fn bench_neighbors(c: &mut Criterion) {
                     b.iter(|| {
                         let search_feature = cycle_range.next().unwrap();
                         LinearKnn {
-                            metric: Hamming,
+                            metric: bitarray::Hamming,
                             iter: search_space[..size].iter(),
                         }
                         .knn(&search_feature, 10)
@@ -148,12 +152,7 @@ fn bench_neighbors(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("2_nn_DiscreteHNSW", size), &(), |b, _| {
             b.iter(|| {
                 let feature = cycle_range.next().unwrap();
-                let mut neighbors = [Neighbor {
-                    index: !0,
-                    distance: !0,
-                }; 2];
-                hnsw.nearest(&feature, 24, &mut searcher, &mut neighbors)
-                    .len()
+                hnsw.nearest(&feature, 24, &mut searcher).len()
             })
         });
 
@@ -163,12 +162,7 @@ fn bench_neighbors(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("10_nn_DiscreteHNSW", size), &(), |b, _| {
             b.iter(|| {
                 let feature = cycle_range.next().unwrap();
-                let mut neighbors = [Neighbor {
-                    index: !0,
-                    distance: !0,
-                }; 10];
-                hnsw.nearest(&feature, 24, &mut searcher, &mut neighbors)
-                    .len()
+                hnsw.nearest(&feature, 24, &mut searcher).len()
             })
         });
     }

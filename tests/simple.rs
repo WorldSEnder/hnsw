@@ -1,9 +1,10 @@
 //! Useful tests for debugging since they are hand-written and easy to see the debugging output.
 
-use hnsw::{Hnsw, Searcher};
+use hnsw::compat::{Hnsw, Searcher};
+use hnsw::details::{Metric, Neighbor};
 use rand_pcg::Pcg64;
-use space::{Metric, Neighbor};
 
+#[derive(Default)]
 struct Euclidean;
 
 impl Metric<&[f64]> for Euclidean {
@@ -23,10 +24,10 @@ fn test_hnsw() -> (
     Searcher<u64>,
 ) {
     let mut searcher = Searcher::default();
-    let mut hnsw = Hnsw::new(Euclidean);
+    let mut hnsw = Hnsw::new();
 
     let features = [
-        &[0.0, 0.0, 0.0, 1.0],
+        &[0.0, 0.0, 0.0, 1.0][..],
         &[0.0, 0.0, 1.0, 0.0],
         &[0.0, 1.0, 0.0, 0.0],
         &[1.0, 0.0, 0.0, 0.0],
@@ -52,12 +53,8 @@ fn insertion() {
 fn nearest_neighbor() {
     let (hnsw, mut searcher) = test_hnsw();
     let searcher = &mut searcher;
-    let mut neighbors = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 8];
 
-    hnsw.nearest(&&[0.0, 0.0, 0.0, 1.0][..], 24, searcher, &mut neighbors);
+    let neighbors = hnsw.nearest(&&[0.0, 0.0, 0.0, 1.0][..], 24, searcher);
     // Distance 1
     neighbors[1..3].sort_unstable();
     // Distance 2

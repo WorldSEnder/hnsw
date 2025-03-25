@@ -1,12 +1,12 @@
 [package]
 name = "hnsw"
-version = "0.11.1-alpha.0"
-authors = ["Geordon Worley <vadixidav@gmail.com>"]
+version = "0.12.0-alpha.0"
+authors = ["Geordon Worley <vadixidav@gmail.com>", "Martin Molzer <ga65guy@mytum.de>"]
 edition = "2018"
 description = "Fast approximate nearest neighbors"
 keywords = ["hamming", "distance", "nearest", "neighbor", "search"]
 categories = ["algorithms", "data-structures", "science"]
-repository = "https://github.com/rust-cv/hnsw"
+repository = "https://github.com/WorldSEnder/hnsw"
 documentation = "https://docs.rs/hnsw/"
 license = "MIT"
 readme = "README.md"
@@ -19,14 +19,15 @@ name = "benches"
 harness = false
 
 [dependencies]
-space = { version = "0.17.0", default-features = false, features = ["alloc"] }
-rand_core = "0.6.3"
-hashbrown = "0.11.2"
-serde = { version = "1.0.126", default-features = false, features = ["derive"], optional = true }
-libm = "0.2.1"
-smallvec = { version = "1.6.1", features = ["const_generics"] }
 ahash = { version = "0.7.4", default-features = false }
 num-traits = { version = "0.2.14", default-features = false }
+space = { version = "0.17.0", default-features = false, features = ["alloc"] }
+rand_core = "0.6.3"
+rand_pcg = "0.3.1"
+hashbrown = "0.11.2"
+libm = "0.2.1"
+smallvec = { version = "1.6.1", features = ["const_generics"] }
+serde = { version = "1.0.126", default-features = false, features = ["derive"], optional = true }
 
 [dev-dependencies]
 space = { version = "0.17.0", features = ["serde", "alloc"] }

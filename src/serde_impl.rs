@@ -1,4 +1,4 @@
-use crate::hnsw::nodes::NeighborNodes;
+use crate::details::NeighborNodes;
 use core::fmt;
 use serde::{
     de::{Error, Expected, SeqAccess, Visitor},

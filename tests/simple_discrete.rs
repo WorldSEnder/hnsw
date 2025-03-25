@@ -1,22 +1,16 @@
 //! Useful tests for debugging since they are hand-written and easy to see the debugging output.
 
-use hnsw::{Hnsw, Searcher};
+use hnsw::compat::{Hnsw, Searcher};
+use hnsw::details::Neighbor;
 use rand_pcg::Pcg64;
-use space::{Metric, Neighbor};
 
-struct Hamming;
-
-impl Metric<u8> for Hamming {
-    type Unit = u8;
-
-    fn distance(&self, &a: &u8, &b: &u8) -> u8 {
-        (a ^ b).count_ones() as u8
-    }
-}
+#[path = "utils/hamming.rs"]
+mod hamming;
+use hamming::Hamming;
 
 fn test_hnsw_discrete() -> (Hnsw<Hamming, u8, Pcg64, 12, 24>, Searcher<u8>) {
     let mut searcher = Searcher::default();
-    let mut hnsw = Hnsw::new(Hamming);
+    let mut hnsw = Hnsw::new();
 
     let features = [
         0b0001, 0b0010, 0b0100, 0b1000, 0b0011, 0b0110, 0b1100, 0b1001,
@@ -37,12 +31,8 @@ fn insertion_discrete() {
 #[test]
 fn nearest_neighbor_discrete() {
     let (hnsw, mut searcher) = test_hnsw_discrete();
-    let mut neighbors = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 8];
 
-    hnsw.nearest(&0b0001, 24, &mut searcher, &mut neighbors);
+    let neighbors = hnsw.nearest(&0b0001, 24, &mut searcher);
     // Distance 1
     neighbors[1..3].sort_unstable();
     // Distance 2
