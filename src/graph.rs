@@ -424,27 +424,27 @@ where
 
         let entry_layer = self.initialize_searcher(&q, searcher);
 
-        // Find the entry point on the level it was created by searching normally until its level.
-        for ix in (level..entry_layer).rev() {
-            // Perform an ANN search on this layer like normal.
-            let cap = 1;
-            self.search_single_layer(&q, searcher, &self.layers[ix], cap);
-            self.lower_search(&self.layers[ix], searcher);
-        }
-        // Then start from its level and connect it to its nearest neighbors.
-        for ix in (0..core::cmp::min(level, entry_layer)).rev() {
-            // Perform an ANN search on this layer like normal.
-            let cap = self.params.ef_construction();
-            self.search_single_layer(&q, searcher, &self.layers[ix], cap);
-            // Then use the results of that search on this layer to connect the nodes.
-            self.create_node(&q, &searcher.nearest, ix);
-            // Then lower the search only after we create the node to preserve nearest data
-            self.lower_search(&self.layers[ix], searcher);
+        // Perform an ANN search on this layer like normal.
+        for ix in (0..entry_layer).rev() {
+            let should_construct = ix < level;
+            if should_construct {
+                let cap = self.params.ef_construction();
+                self.search_single_layer(&q, searcher, &self.layers[ix], cap);
+                // Then use the results of that search on this layer to connect the nodes.
+                self.create_node(&q, &searcher.nearest, ix);
+                // Then lower the search only after we create the node to preserve nearest data
+                self.lower_search(&self.layers[ix], searcher);
+            } else {
+                let layer = &self.layers[ix];
+                let cap = 1;
+                self.search_single_layer(&q, searcher, layer, cap);
+                self.lower_search(layer, searcher);
+            }
         }
 
         // Also search and connect the node to the zero layer.
         let cap = self.params.ef_construction();
-        self.search_zero_layer(&q, searcher, cap);
+        self.search_single_layer(&q, searcher, &self.zero, cap);
         let zero_node = self.create_zero_node(q, &searcher.nearest);
 
         // Add all level vectors needed to be able to add this level.
@@ -460,7 +460,14 @@ where
         let new_index = self.zero.len();
         let node = Comps::IL0Node::new_zero_node(nearest);
         for neighbor in node.neighbors().iter() {
-            self.add_neighbor(&q, new_index, neighbor, 0);
+            Self::add_neighbor(
+                &q,
+                new_index,
+                neighbor,
+                &self.params,
+                &self.features,
+                &mut self.zero,
+            );
         }
         // Add the feature to the zero layer and features
         self.zero.push(node);
@@ -471,7 +478,6 @@ where
     /// Creates a new node at a layer given its nearest neighbors in that layer.
     /// This contains Algorithm 3 from the paper, but also includes some additional logic.
     fn create_node(&mut self, q: &T, nearest: &[Neighbor<IUnit<Comps, T>>], layer_ix: usize) {
-        let layer = layer_ix + 1;
         let zero_node = self.zero.len();
         let next_node = if let Some(prev_layer) = layer_ix.checked_sub(1) {
             self.layers[prev_layer].len()
@@ -481,12 +487,19 @@ where
         let node = Comps::ILayerNode::new_node(zero_node, next_node, nearest);
         let new_index = self.layers[layer_ix].len();
         for neighbor in node.neighbors().iter() {
-            self.add_neighbor(q, new_index, neighbor, layer);
+            Self::add_neighbor(
+                q,
+                new_index,
+                neighbor,
+                &self.params,
+                &self.features,
+                &mut self.layers[layer_ix],
+            );
         }
         self.layers[layer_ix].push(node);
     }
 
-    fn add_neighbor_impl(
+    fn add_neighbor(
         q: &T,
         new_neighbor: usize,
         target_ix: usize,
@@ -528,29 +541,6 @@ where
                     .neighbors_mut()
                     .replace(worst_ix, new_neighbor);
             }
-        }
-    }
-    /// Attempts to add a neighbor to a target node.
-    fn add_neighbor(&mut self, q: &T, new_neighbor: usize, target_ix: usize, layer: usize) {
-        // The two layer types are not the same, hence the branches don't unify
-        if layer == 0 {
-            Self::add_neighbor_impl(
-                q,
-                new_neighbor,
-                target_ix,
-                &self.params,
-                &self.features,
-                &mut self.zero,
-            );
-        } else {
-            Self::add_neighbor_impl(
-                q,
-                new_neighbor,
-                target_ix,
-                &self.params,
-                &self.features,
-                &mut self.layers[layer - 1],
-            );
         }
     }
 }
@@ -598,7 +588,8 @@ where
 
         let entry_layer = self.initialize_searcher(q, searcher);
 
-        for (ix, layer) in self.layers[0..entry_layer].iter().enumerate().rev() {
+        for ix in (0..entry_layer).rev() {
+            let layer = &self.layers[ix];
             let early_stop = ix + 1 == level;
             let cap = if early_stop { ef } else { 1 };
             self.search_single_layer(q, searcher, layer, cap);
@@ -609,8 +600,7 @@ where
         }
 
         let cap = ef;
-
-        self.search_zero_layer(q, searcher, cap);
+        self.search_single_layer(q, searcher, &self.zero, cap);
 
         &mut searcher.nearest
     }
@@ -655,18 +645,6 @@ where
                 }
             }
         }
-    }
-
-    /// Greedily finds the approximate nearest neighbors to `q` in the zero layer.
-    fn search_zero_layer<Q: ?Sized>(
-        &self,
-        q: &Q,
-        searcher: &mut Searcher<QUnit<Comps, Q, T>>,
-        cap: usize,
-    ) where
-        Comps: HnswQueryComponents<Q, T>,
-    {
-        self.search_single_layer(q, searcher, &self.zero, cap);
     }
 
     /// Ready a search for the next level down.
