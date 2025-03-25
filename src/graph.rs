@@ -681,21 +681,13 @@ where
         // Only preserve the best candidate. The original paper's algorithm uses `1` every time.
         // See Algorithm 5 line 5 of the paper. The paper makes no further comment on why `1` was chosen.
         searcher.nearest.truncate(1);
-        let Neighbor {
-            ref index,
-            distance,
-        } = searcher.nearest.pop().unwrap();
-        searcher.nearest.clear();
-        // Update the node to the next layer.
-        let new_index = layer[*index].lower_index();
-        let candidate = Neighbor {
-            index: new_index,
-            distance,
-        };
-        // Insert the index of the nearest neighbor into the nearest pool for the next layer.
-        searcher.nearest.push(candidate);
-        // Insert the index into the candidate pool as well.
-        searcher.candidates.push(candidate);
+        // Update all nodes to the next layer.
+        for near in &mut searcher.nearest {
+            let lower_index = layer[near.index].lower_index();
+            near.index = lower_index;
+            // Insert the index into the candidate pool as well.
+            searcher.candidates.push(*near);
+        }
     }
 
     /// Resets a searcher, but does not set the `cap` on the nearest neighbors.
