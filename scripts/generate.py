@@ -1,3 +1,10 @@
+#!/bin/env python3
+
+# Script Dependencies:
+#    opencv-python
+#    progress     # For the progress bar when running
+#    docopt       # For the command line help
+
 """
 generate
 

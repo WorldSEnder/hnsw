@@ -1,5 +1,4 @@
 /target
-/data
 **/*.rs.bk
 Cargo.lock
 
@@ -7,3 +6,7 @@ Cargo.lock
 /perf.*
 
 /.vscode
+/venv
+
+/data/*
+!data/.gitkeep
